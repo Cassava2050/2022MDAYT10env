@@ -41,7 +41,7 @@ names(sel_data_kp) = gsub("-", "_", names(sel_data_kp))
 duplicated_plot <- row_col_dup(sel_data_kp)
 
 ## Plot trial layout
-trial_layout(sel_data_kp)
+#trial_layout(sel_data_kp)
 
 
 ## Check the clone name
@@ -179,9 +179,11 @@ trait_list
 names(trial_tidy)= gsub("obs_", "", names(trial_tidy))
 trial_tidy = trial_tidy[c(meta_info, trait_list)]
 
+# i need to remove DM_gravity from the dataset
+
+trial_tidy <- trial_tidy %>% select(-DM_gravity)
+
 # Boxplots
-
-
 # remove columns with all NA
 my_dat_noNA <- trial_tidy[, colSums(is.na(trial_tidy)) < nrow(trial_tidy)]
 trait_wanted <- names(my_dat_noNA)[names(my_dat_noNA) %in% trait_list]
@@ -218,17 +220,15 @@ trial_tidy_1 <- trial_tidy %>%
 
 # convert zero values into NA (yield, DM_gravity)
 trial_tidy_1 <- trial_tidy_1 %>% 
-  mutate(yield_ha = ifelse(yield_ha == 0, NA, yield_ha), 
-         DM_gravity = ifelse(DM_gravity == 0, NA, DM_gravity)) 
+  mutate(yield_ha = ifelse(yield_ha == 0, NA, yield_ha)) 
 
 # Calculate starch_yield_ha
 trial_tidy_1 <- trial_tidy_1 %>% 
-mutate(starch_yield_ha = starch_content * yield_ha / 100,
-       DM_yield_ha = DM_gravity * yield_ha / 100)
+mutate(starch_yield_ha = starch_content * yield_ha / 100)
 
 
 ## Grouping boxplot
-trait_wanted <- c(trait_wanted, "starch_yield_ha", "DM_yield_ha")
+trait_wanted <- c(trait_wanted, "starch_yield_ha")
 plot_bxp <- trial_tidy_1 %>%
   pivot_longer(
     cols = all_of(trait_wanted),
@@ -295,7 +295,7 @@ sel_file = list_file[str_detect(list_file, "_tidy_data4analysis_") &
                        str_detect(list_file,
                                   paste(year_interest, trial_interest, sep=""))]
 # the data we will use
-sel_file_use = sel_file[1]
+sel_file_use = sel_file[2]
 
 sel_file_use
 trial1_tidy = read.csv(here::here("output", sel_file_use), header=TRUE,
@@ -341,8 +341,6 @@ print(analysis_trait)
 
 
 ## Select the meta information for analysis
-
-
 meta_col <- names(trial_tidy_all)[names(trial_tidy_all) %in% meta_all_adj]
 print("All the meta information:")
 print(meta_col)
@@ -391,27 +389,18 @@ ggsave(paste("images\\pheno_corr", trial_interest, Sys.Date(), ".png", sep = "_"
 ## Check design experimental
 
 ### Agriutilities library
-# Rep_number == 3 was removed from 2021103MDAYT_quan, due to there were several missing values
-my_dat_1 <- trial_rm_sd %>% filter(trial_name %in% c("2021103MDAYT_quan"), !rep_number == 3)
+# Rep_number == 3 was removed from 2021103MDAYT_quan, 
+# due to there were several missing values
+my_dat_1 <- trial_rm_sd %>% filter(trial_name 
+                                   %in% c("2021103MDAYT_quan"), 
+                                   !rep_number == 3)
 
 my_dat <- trial_rm_sd %>% 
   add_column(block = NA) %>% mutate(block = as.factor(block)) %>% 
   filter(!trial_name == "2021103MDAYT_quan") %>% 
   bind_rows(my_dat_1)
 
-# Plot dry matter vs starch content. 
-my_dat %>% select(DM_gravity, starch_content, trial_name) %>% 
-  drop_na() %>% 
-  ggplot(aes(x = DM_gravity, y = starch_content)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = F) +
-  facet_wrap(~trial_name) +
-  theme_xiaofei()
-
-ggsave(paste("images\\dm_starch_corr", trial_interest, Sys.Date(), ".png", sep = "_"),
-       units = "in", dpi = 300, width = 12, height = 8
-)
-  
+# run just for GxE analisys
 my_dat_1 <- my_dat %>% filter(trial_name %in% c("202088MDAYT_dona", 
                                                 "202089MDAYT_tani",
                                                 "2021100MDAYT_phuy",
@@ -438,7 +427,6 @@ results <- check_design_met(
   row = "row_number",
   block = "block"
 )
-
 
 
 shared <- plot(results, type = "connectivity")
@@ -468,7 +456,6 @@ obj <- single_trial_analysis(results = results,
                              progress = TRUE,
                              remove_outliers = FALSE)
 
-#elements_to_remove <- c("202050DVPRG_ciat", "202136DVPRG_ciat")
 
 trials <- unique(my_dat$trial_name)
 
@@ -509,6 +496,7 @@ master_data[["single_h2"]] <- single_h2
 single_h2 %>% 
   write.table("clipboard", sep = "\t", col.names = T, row.names = F, na = "")
 
+# ---------------------------------------------------------------------------
 ## Multi environmetal analysis
 
 # It is necessary run again the single trial analysis removing
@@ -518,16 +506,14 @@ single_h2 %>%
 # because there was low conectivity among them.
 
 traits_to_remove <- c("root_number_commercial",	"root_plant_number",	
-                        "root_rot_number",	"root_skin_color1_3",
-                        "germinated_number_plot", "harvest_index", 
+                      "root_rot_number",	"root_skin_color1_3",
+                      "germinated_number_plot", "harvest_index", 
                       "shoot_weight_plot", "root_number")
   
   met_results <- met_analysis(obj, 
-                              filter_traits = trait_ideal[!trait_ideal %in% c(traits_to_remove)],
+                              filter_traits = 
+                                trait_ideal[!trait_ideal %in% c(traits_to_remove)],
                               h2_filter = 0.09,
-                              # remove_trials = trials[!trials %in% c("2021101MDAYT_sola",
-                              #                                       "2021106MDAYT_tani",
-                              #                                       "2022118DMAYT_phuy")],
                               progress = TRUE
                               )
 
@@ -553,9 +539,7 @@ BLUPs_table <-
   ungroup() 
 #save the BLUPs data
 master_data[[paste0("BLUPs_", "gxe")]] <- BLUPs_table
-
 ## Genotypic Correlation: Locations
-
 
 # Yield
 covcor_heat(matrix = met_results$VCOV$yield_ha$CORR, size = 4, legend =c(0.35, 0.8)) +
@@ -698,7 +682,7 @@ BLUEs_BLUPs <-
       pivot_wider(names_from = "trait", values_from = c("BLUPs", "seBLUPs")),
     by = "genotype"
   ) %>%
-  arrange(desc(BLUPs_DM_gravity)) %>% 
+  arrange(desc(BLUPs_starch_content)) %>% 
   arrange(is.na(across(where(is.numeric))), across(where(is.numeric))) %>%
   mutate(across(where(is.numeric), round, 2))
 # remove all NA columns
@@ -750,5 +734,135 @@ folder_output <- here::here("output//")
 meta_file_name <- paste0(folder_output, paste("2022", trial_interest, "master_results", Sys.Date(), ".xlsx", sep = "_"))
 
 write.xlsx(master_data, file = meta_file_name)
+
+
+## Index selection
+
+
+list_file <- list.files(folder_output)
+sel_file <- list_file[str_detect(list_file, "_master_results_") &
+                        str_detect(list_file, trial_interest)]
+sel_file
+
+sel_file[1]
+blupDF_kp <- read_excel(
+  paste(folder_output,
+        sel_file[1],
+        sep = ""
+  ),
+  sheet = paste0("BLUPs_", "gxe")
+)
+
+
+## Selection index
+
+
+colnames(blupDF_kp)
+
+index_traits <- c("DM_gravity", "plant_type", "yield_ha")
+
+index_dat <- blupDF_kp %>%
+  select("accession_name", all_of(index_traits)) %>% 
+  drop_na()
+
+
+## Selection index function
+
+
+# multi-trait -------------------------------------------------------------
+library(explor)
+library(FactoMineR)
+library(factoextra)
+library(cowplot)
+library(ggpubr)
+pca_index <- function(data, id, variables = NULL, percentage = 0.20, b) {
+  # The data set to be analyzed. It should be in the form of a data frame.
+  data <- as.data.frame(data)
+  rownames(data) <- data[, id]
+  if (is.null(variables)) variables <- names(data)[names(data) != id]
+  data <- data[, variables]
+  index <- selIndex(Y = as.matrix(data), b = b, scale = T)
+  index <- c(index)
+  data$index <- index
+  data <- data %>% arrange(desc(index))
+  data$selected <- NA
+  data$selected[1:(round(percentage * nrow(data)))] <- TRUE
+  data$selected <- ifelse(is.na(data$selected), FALSE, data$selected)
+  res.pca <- PCA(data, graph = T, scale.unit = T, quali.sup = ncol(data))
+  p1 <- fviz_pca_var(res.pca, col.var = "black", repel = T) +
+    theme_xiaofei()
+  p2 <- fviz_pca_ind(res.pca,
+                     label = "none", habillage = data$selected,
+                     palette = c("#00AFBB", "#FC4E07"), addEllipses = T
+  ) +
+    theme_xiaofei()
+  # labs(title =  paste("Selection:",
+  #                     paste0(percentage*100,"%")),
+  #      subtitle = paste("Weights:", "(", paste0(b, collapse = ', '),")"  ))
+  final <- ggdraw() +
+    draw_plot(p1, x = 0, y = 0, width = .5, height = 1) +
+    draw_plot(p2, x = .5, y = 0.2, width = .5, height = 0.6) #+
+    # draw_plot_label(
+    #   label = c("A", "B"), size = 15,
+    #   x = c(0, 0.5), y = c(1, 1)
+    # )
+  
+  # final <- ggarrange(p1, p2, legend = "bottom", common.legend = T)
+  # final <- annotate_figure(final,
+  #   top = text_grob(paste(
+  #     "Selection:",
+  #     paste0(percentage * 100, "%"), "\n",
+  #     paste("Weights:", "(", paste0(b, collapse = ", "), ")", "\n")
+  #   ), color = "black", face = "bold", size = 14)
+  # )
+  selection <- data %>% filter(selected == T)
+  return(list(res.pca = res.pca, final = final, results = data, selection = selection))
+}
+selIndex <- function (Y, b, scale = FALSE) 
+{
+  if (scale) {
+    return(scale(Y) %*% b)
+  }
+  return(Y %*% b)
+}
+
+
+## Index selection
+
+
+
+res.pca <- pca_index(data = index_dat, id = "accession_name", b = c(10, -5, 10), percentage = 0.20)
+res.pca_final <- res.pca$final
+res.pca_final
+ggsave(paste("images/selection",  trial_interest, Sys.Date(), ".png"), plot = res.pca_final, units = "in", dpi = 300, width = 10, height = 10)
+res.pca$selection
+selections <- res.pca$results %>% rownames_to_column(var = "accession_name") 
+selections %>% 
+  select(accession_name, index, everything()) %>% 
+  write.table("clipboard", sep = "\t", col.names = T, row.names = F)
+
+
+## Add index column to BLUEs_BLUPs_MET
+
+
+BLUEs_BLUPs <- 
+  master_data$BLUEs_BLUPs_MET %>% 
+  left_join(selections[-c(2:4)], by = c("genotype" = "accession_name")) %>% 
+  relocate(index, selected, .before = 2)
+
+BLUEs_BLUPs <- BLUEs_BLUPs %>% 
+  arrange(is.na(selected))
+master_data[["BLUEs_BLUPs_MET"]] = BLUEs_BLUPs
+
+
+## Save the master data results
+
+
+folder_output <- here::here("output//")
+meta_file_name <- paste0(folder_output, paste("2022", trial_interest, "master_results", Sys.Date(), ".xlsx", sep = "_"))
+write.xlsx(master_data, file = meta_file_name)
+
+
+
 
 
